@@ -43,11 +43,9 @@ def calculate_poisson_metrics(
     active_seconds: float,
 ) -> Dict[str, float]:
     """计算泊松模型所需的核心指标。"""
-    full_day_avg = daily_dialogs * avg_duration / 86400
     # 文档中的 λ，表示每秒平均请求数，也可理解为日间平均并发。
     lam = daily_dialogs * daytime_ratio * avg_duration / active_seconds
 
     return {
-        "full_day_avg": full_day_avg,
         "lambda": lam,
     }

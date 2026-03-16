@@ -86,7 +86,6 @@ def main(
         typer.echo(f"- 日间活跃时长: {format_decimal(float(values['active_seconds']))} 秒")
 
     typer.echo("\n泊松模型结果")
-    typer.echo(f"- 全天平均并发: {format_decimal(metrics['full_day_avg'])}")
     typer.echo(f"- λ（每秒平均请求数 / 日间平均并发）: {format_decimal(metrics['lambda'])}")
 
     if thresholds:
