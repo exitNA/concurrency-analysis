@@ -1,7 +1,7 @@
 [project]
 name = "concurrency-analysis"
 version = "0.1.0"
-description = "Add your description here"
+description = "估算对话类 AI 应用的并发风险、阈值超标概率和建议限流阈值"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
