@@ -12,10 +12,10 @@
 
 ## 代码结构
 
-- [main.py](/mnt/c/work/concurrency-analysis/main.py): Typer CLI 入口与结果输出
-- [cli_args.py](/mnt/c/work/concurrency-analysis/cli_args.py): CLI 参数解析、校验、格式化
-- [calc.py](/mnt/c/work/concurrency-analysis/calc.py): 泊松分布核心计算逻辑
-- [params.py](/mnt/c/work/concurrency-analysis/params.py): 默认常量
+- [src/main.py](/mnt/c/work/concurrency-analysis/src/main.py): Typer CLI 入口与结果输出
+- [src/cli_args.py](/mnt/c/work/concurrency-analysis/src/cli_args.py): CLI 参数解析、校验、格式化
+- [src/calc.py](/mnt/c/work/concurrency-analysis/src/calc.py): 泊松分布核心计算逻辑
+- [src/params.py](/mnt/c/work/concurrency-analysis/src/params.py): 默认常量
 - [doc/并发量估算.md](/mnt/c/work/concurrency-analysis/doc/并发量估算.md): 计算依据文档
 
 ## 安装
@@ -39,31 +39,31 @@ pip install typer
 查看帮助：
 
 ```bash
-python main.py --help
+python src/main.py --help
 ```
 
 基础示例：
 
 ```bash
-python main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h
+python src/main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h
 ```
 
 分析单个阈值：
 
 ```bash
-python main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --k 10
+python src/main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --k 10
 ```
 
 分析阈值范围：
 
 ```bash
-python main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --k 10~14
+python src/main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --k 10~14
 ```
 
 指定稳定性目标：
 
 ```bash
-python main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --stability 95 --stability 99.5 --stability 99.9
+python src/main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --stability 95 --stability 99.5 --stability 99.9
 ```
 
 ## CLI 参数
@@ -94,5 +94,5 @@ python main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --stability 95 --s
 可以用下面的方式检查脚本是否可正常导入：
 
 ```bash
-python -m py_compile main.py calc.py cli_args.py params.py
+python -m py_compile src/main.py src/calc.py src/cli_args.py src/params.py
 ```

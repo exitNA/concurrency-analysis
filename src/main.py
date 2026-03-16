@@ -51,8 +51,8 @@ def main(
     """泊松分布并发量估算工具。
 
     示例:
-      python main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --k 10
-      python main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --k 10~14
+      python src/main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --k 10
+      python src/main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --k 10~14
     """
     thresholds = parse_threshold_range(threshold)
     try:
