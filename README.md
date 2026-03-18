@@ -1,34 +1,28 @@
-# 并发量估算工具
+# 高分位请求强度测算工具
 
-基于 [doc/并发量估算.md](/mnt/c/work/concurrency-analysis/doc/并发量估算.md) 中的泊松分布统计模型，估算对话类 AI 应用的并发风险、阈值超标概率和建议限流阈值。
+基于 [doc/并发量估算.md](doc/并发量估算.md) 中的泊松分布分位数方法，从模型日请求量估算高分位等效 QPS。
 
-## 功能
+## 核心计算链路
 
-- 根据日对话次数 `D`、单轮耗时 `T`、日间流量占比、日间活跃时长计算 `λ`
-- 计算指定并发阈值 `k` 的超阈值概率 `P(X>=k)`
-- 根据稳定性目标反推建议阈值
-- 支持时长格式 `3h`、`19m`、`4s`、`3h20m43s`
-- 支持单个阈值 `k=10`，也支持范围 `k=10~14`
+$$
+日请求量\ R_d \rightarrow 活跃时段平均到达率\ QPS_{avg} \rightarrow 窗口请求数泊松分布 \rightarrow 高分位请求数\ q_{p,\Delta t} \rightarrow 高分位等效\ QPS
+$$
 
 ## 代码结构
 
-- [src/main.py](/mnt/c/work/concurrency-analysis/src/main.py): Typer CLI 入口与结果输出
-- [src/cli_args.py](/mnt/c/work/concurrency-analysis/src/cli_args.py): CLI 参数解析、校验、格式化
-- [src/calc.py](/mnt/c/work/concurrency-analysis/src/calc.py): 泊松分布核心计算逻辑
-- [src/params.py](/mnt/c/work/concurrency-analysis/src/params.py): 默认常量
-- [doc/并发量估算.md](/mnt/c/work/concurrency-analysis/doc/并发量估算.md): 计算依据文档
+- `src/main.py`: Typer CLI 入口与结果输出
+- `src/cli_args.py`: CLI 参数解析、校验、格式化
+- `src/calc.py`: 泊松分位数核心计算逻辑
+- `src/params.py`: 默认常量
+- `doc/并发量估算.md`: 计算方法文档
 
 ## 安装
-
-项目依赖写在 [pyproject.toml](/mnt/c/work/concurrency-analysis/pyproject.toml)。
-
-如果使用 `uv`：
 
 ```bash
 uv sync
 ```
 
-如果直接使用本地 Python 环境，至少需要安装：
+或：
 
 ```bash
 pip install typer
@@ -42,57 +36,60 @@ pip install typer
 python src/main.py --help
 ```
 
-基础示例：
+基础示例（使用默认窗口 10s、默认分位 P99 + P99.9）：
 
 ```bash
-python src/main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h
+python src/main.py --d 100000 --day-ratio 0.9 --day-time 10h
 ```
 
-分析单个阈值：
+指定统计窗口和分位：
 
 ```bash
-python src/main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --k 10
-```
-
-分析阈值范围：
-
-```bash
-python src/main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --k 10~14
-```
-
-指定稳定性目标：
-
-```bash
-python src/main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --stability 95 --stability 99.5 --stability 99.9
+python src/main.py --d 100000 --day-ratio 0.9 --day-time 10h --window 60 --percentile 0.99 --percentile 0.999
 ```
 
 ## CLI 参数
 
-- `--d`, `-d`: 日对话次数 `D`
-- `--t`, `-t`: 单轮对话平均耗时 `T`，单位秒
-- `--day-ratio`, `-r`: 日间流量占比，支持 `0.9` 或 `90`
-- `--day-time`, `-a`: 日间活跃时长，支持 `3h`、`19m`、`4s`、`3h20m43s`
-- `--k`, `-k`: 并发阈值，支持单个值 `10` 或范围 `10~14`
-- `--stability`, `-s`: 稳定性目标，可重复传入多个值
+| 参数 | 缩写 | 说明 | 默认值 |
+|---|---|---|---|
+| `--d` | `-d` | 模型日请求量 $R_d$ | 必填 |
+| `--day-ratio` | `-r` | 活跃时段流量占比 $R_{act}$，支持 `0.9` 或 `90` | 必填 |
+| `--day-time` | `-a` | 活跃时段时长 $H_{act}$，支持 `10h`、`30m`、`10h30m` | 必填 |
+| `--window` | `-w` | 统计窗口 $\Delta t$（秒） | `10` |
+| `--percentile` | `-p` | 目标分位，可多次传入 | `0.99, 0.999` |
 
 ## 输出说明
 
-工具会输出三类结果：
+对每个目标分位，输出：
 
-- 输入参数回显
-- 泊松模型核心结果：`λ`
-- 指定阈值分析：`P(X>=k)` 与对应稳定性
-- 泊松阈值建议：按稳定性目标反推建议阈值
+| 指标 | 含义 |
+|---|---|
+| `QPS_avg` | 活跃时段平均到达率 $\lambda$ |
+| `μ` | 统计窗口内平均请求数 |
+| `q_{p,Δt}` | 高分位请求数 |
+| `高分位等效 QPS` | $q_{p,\Delta t} / \Delta t$ |
 
-示例输出中的：
+## 示例输出
 
-- `λ`: 每秒平均请求数，也可理解为日间平均并发
-- `P(X>=k)`: 某一秒并发量大于等于阈值 `k` 的概率
+```
+输入参数
+  模型日请求量 R_d:       100,000
+  活跃时段流量占比 R_act:  90.0%
+  活跃时段时长 H_act:      10h (36,000 秒)
+  统计窗口 Δt:            10 秒
+  目标分位:               99.0%, 99.9%
 
-## 校验
+高分位 QPS 测算
 
-可以用下面的方式检查脚本是否可正常导入：
+  ── 99.0% 分位 ──
+  活跃时段平均到达率 QPS_avg:  2.50
+  窗口平均请求数 μ:            25
+  高分位请求数 q_{p,Δt}:       37
+  高分位等效 QPS:              3.70
 
-```bash
-python -m py_compile src/main.py src/calc.py src/cli_args.py src/params.py
+  ── 99.9% 分位 ──
+  活跃时段平均到达率 QPS_avg:  2.50
+  窗口平均请求数 μ:            25
+  高分位请求数 q_{p,Δt}:       42
+  高分位等效 QPS:              4.20
 ```

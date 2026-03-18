@@ -7,104 +7,92 @@ import typer
 from cli_args import (
     format_decimal,
     format_percent,
-    parse_stability_targets,
-    parse_threshold_range,
+    parse_percentiles,
     validate_inputs,
 )
-from calc import calculate_poisson_metrics, poisson_tail_probability, recommend_threshold
-from params import DEFAULT_STABILITY_TARGETS
+from calc import estimate_peak_qps
+from params import DEFAULT_PERCENTILES, DEFAULT_WINDOW_SECONDS
 
 
 app = typer.Typer(
     add_completion=False,
-    help="根据 doc/并发量估算.md 使用泊松分布统计模型估算 AI 对话类应用并发阈值。",
+    help="基于 doc/并发量估算.md 的高分位请求强度测算工具。",
 )
 
 
 @app.command()
 def main(
-    daily_dialogs: Annotated[
+    daily_requests: Annotated[
         int | None,
-        typer.Option("--d", "-d", help="日对话次数 D。"),
+        typer.Option("--d", "-d", help="模型日请求量 R_d。"),
     ] = None,
-    avg_duration: Annotated[
+    active_ratio: Annotated[
         float | None,
-        typer.Option("--t", "-t", help="单轮对话平均耗时 T（秒）。"),
-    ] = None,
-    daytime_ratio: Annotated[
-        float | None,
-        typer.Option("--day-ratio", "-r", help="日间流量占比，支持 0.9 或 90 两种写法。"),
+        typer.Option("--day-ratio", "-r", help="活跃时段流量占比 R_act，支持 0.9 或 90 两种写法。"),
     ] = None,
     active_duration: Annotated[
         str | None,
-        typer.Option("--day-time", "-a", help="日间活跃时长，使用 NUM+UNIT 格式，例如 3h、19m、4s 或 3h20m43s。"),
+        typer.Option("--day-time", "-a", help="活跃时段时长 H_act，使用 NUM+UNIT 格式，例如 10h、30m 或 10h30m。"),
     ] = None,
-    threshold: Annotated[
-        str | None,
-        typer.Option("--k", "-k", help="并发阈值，可传单个值 k 或范围 n~m，例如 10 或 10~14。"),
+    window: Annotated[
+        float | None,
+        typer.Option("--window", "-w", help="统计窗口 Δt（秒），默认 10 秒。"),
     ] = None,
-    stability_target: Annotated[
+    percentile: Annotated[
         list[str] | None,
-        typer.Option("--stability", "-s", help="稳定性目标列表。多次传入该参数可分析多个目标，例如 --stability 99.5。"),
+        typer.Option("--percentile", "-p", help="目标分位，可多次传入，例如 --percentile 0.99 --percentile 0.999。"),
     ] = None,
 ) -> None:
-    """泊松分布并发量估算工具。
+    """高分位请求强度测算工具。
 
     示例:
-      python src/main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --k 10
-      python src/main.py --d 100000 --t 2 --day-ratio 90 --day-time 10h --k 10~14
+      python src/main.py --d 100000 --day-ratio 0.9 --day-time 10h
+      python src/main.py --d 100000 --day-ratio 0.9 --day-time 10h --window 10 --percentile 0.99 --percentile 0.999
     """
-    thresholds = parse_threshold_range(threshold)
+    window_seconds = window if window is not None else DEFAULT_WINDOW_SECONDS
+
     try:
         values = validate_inputs(
-            daily_dialogs=daily_dialogs,
-            avg_duration=avg_duration,
-            daytime_ratio=daytime_ratio,
+            daily_requests=daily_requests,
+            active_ratio=active_ratio,
             active_duration=active_duration,
         )
-        stability_targets = parse_stability_targets(stability_target or DEFAULT_STABILITY_TARGETS)
+        percentiles = parse_percentiles(percentile or DEFAULT_PERCENTILES)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
 
-    metrics = calculate_poisson_metrics(
-        daily_dialogs=int(float(values["daily_dialogs"])),
-        avg_duration=float(values["avg_duration"]),
-        daytime_ratio=float(values["daytime_ratio"]),
-        active_seconds=float(values["active_seconds"]),
-    )
+    if window_seconds <= 0:
+        raise typer.BadParameter("统计窗口 Δt 必须大于 0。")
 
+    # ── 输入参数 ──
     typer.echo("输入参数")
-    typer.echo(f"- 日总对话次数 D: {format_decimal(float(values['daily_dialogs']))}")
-    typer.echo(f"- 单轮耗时 T: {format_decimal(float(values['avg_duration']))} 秒")
-    typer.echo(f"- 日间流量占比: {format_percent(float(values['daytime_ratio']))}")
+    typer.echo(f"  模型日请求量 R_d:       {format_decimal(float(values['daily_requests']))}")
+    typer.echo(f"  活跃时段流量占比 R_act:  {format_percent(float(values['active_ratio']))}")
     if "active_duration_label" in values:
         typer.echo(
-            f"- 日间活跃时长: {values['active_duration_label']} "
+            f"  活跃时段时长 H_act:      {values['active_duration_label']} "
             f"({format_decimal(float(values['active_seconds']))} 秒)"
         )
     else:
-        typer.echo(f"- 日间活跃时长: {format_decimal(float(values['active_seconds']))} 秒")
+        typer.echo(f"  活跃时段时长 H_act:      {format_decimal(float(values['active_seconds']))} 秒")
+    typer.echo(f"  统计窗口 Δt:            {format_decimal(window_seconds)} 秒")
+    typer.echo(f"  目标分位:               {', '.join(format_percent(p) for p in percentiles)}")
 
-    typer.echo("\n泊松模型结果")
-    typer.echo(f"- λ（每秒平均请求数 / 日间平均并发）: {format_decimal(metrics['lambda'])}")
-
-    if thresholds:
-        typer.echo("\n指定阈值分析")
-        for current_threshold in thresholds:
-            tail_probability = poisson_tail_probability(metrics["lambda"], current_threshold)
-            stability = 1 - tail_probability
-            typer.echo(
-                f"- k={current_threshold}: 超阈值概率 P(X>=k)≈{format_percent(tail_probability)}, "
-                f"稳定性≈{format_percent(stability)}"
-            )
-
-    typer.echo("\n泊松阈值建议")
-    for stability in stability_targets:
-        recommended_threshold, tail_probability = recommend_threshold(metrics["lambda"], 1 - stability)
-        typer.echo(
-            f"- {format_percent(stability)} 稳定性: 建议阈值 k={recommended_threshold}, "
-            f"超阈值概率≈{format_percent(tail_probability)}"
+    # ── 高分位 QPS 测算 ──
+    typer.echo("\n高分位 QPS 测算")
+    for p in percentiles:
+        result = estimate_peak_qps(
+            daily_requests=int(float(values["daily_requests"])),
+            active_ratio=float(values["active_ratio"]),
+            active_seconds=float(values["active_seconds"]),
+            window_seconds=window_seconds,
+            percentile=p,
         )
+        typer.echo(f"\n  ── {format_percent(p)} 分位 ──")
+        typer.echo(f"  活跃时段平均到达率 QPS_avg:  {format_decimal(result['qps_avg'])}")
+        typer.echo(f"  窗口平均请求数 μ:            {format_decimal(result['mu'])}")
+        typer.echo(f"  高分位请求数 q_{{p,Δt}}:       {format_decimal(result['q_p'])}")
+        typer.echo(f"  高分位等效 QPS:              {format_decimal(result['qps_peak'])}")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 [project]
 name = "concurrency-analysis"
 version = "0.1.0"
-description = "估算对话类 AI 应用的并发风险、阈值超标概率和建议限流阈值"
+description = "基于泊松分布分位数方法，从模型日请求量估算高分位等效 QPS"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
