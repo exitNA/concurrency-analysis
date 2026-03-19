@@ -16,7 +16,7 @@ from params import DEFAULT_PERCENTILES, DEFAULT_WINDOW_SECONDS
 
 app = typer.Typer(
     add_completion=False,
-    help="基于 doc/并发量估算.md 的高分位请求强度测算工具。",
+    help="基于 doc/流量测算.md 的高分位请求强度测算工具。",
 )
 
 
@@ -28,11 +28,19 @@ def main(
     ] = None,
     active_ratio: Annotated[
         float | None,
-        typer.Option("--day-ratio", "-r", help="活跃时段流量占比 R_act，支持 0.9 或 90 两种写法。"),
+        typer.Option(
+            "--active-ratio",
+            "-r",
+            help="活跃时段流量占比 R_act，支持 0.9 或 90 两种写法。",
+        ),
     ] = None,
     active_duration: Annotated[
         str | None,
-        typer.Option("--day-time", "-a", help="活跃时段时长 H_act，使用 NUM+UNIT 格式，例如 10h、30m 或 10h30m。"),
+        typer.Option(
+            "--active-duration",
+            "-a",
+            help="活跃时段时长 H_act，使用 NUM+UNIT 格式，例如 10h、30m 或 10h30m。",
+        ),
     ] = None,
     window: Annotated[
         float | None,
@@ -46,8 +54,8 @@ def main(
     """高分位请求强度测算工具。
 
     示例:
-      python src/main.py --d 100000 --day-ratio 0.9 --day-time 10h
-      python src/main.py --d 100000 --day-ratio 0.9 --day-time 10h --window 10 --percentile 0.99 --percentile 0.999
+      python src/main.py --d 100000 --active-ratio 0.9 --active-duration 10h
+      python src/main.py --d 100000 --active-ratio 0.9 --active-duration 10h --window 10 --percentile 0.99 --percentile 0.999
     """
     window_seconds = window if window is not None else DEFAULT_WINDOW_SECONDS
 
@@ -91,8 +99,8 @@ def main(
         typer.echo(f"\n  ── {format_percent(p)} 分位 ──")
         typer.echo(f"  活跃时段平均到达率 QPS_avg:  {format_decimal(result['qps_avg'])}")
         typer.echo(f"  窗口平均请求数 μ:            {format_decimal(result['mu'])}")
-        typer.echo(f"  高分位请求数 q_{{p,Δt}}:       {format_decimal(result['q_p'])}")
-        typer.echo(f"  高分位等效 QPS:              {format_decimal(result['qps_peak'])}")
+        typer.echo(f"  高分位请求数 q_{{p,Δt}}:       {format_decimal(result['q_p_delta_t'])}")
+        typer.echo(f"  高分位等效 QPS_{{p,Δt}}:      {format_decimal(result['qps_p_delta_t'])}")
 
 
 if __name__ == "__main__":

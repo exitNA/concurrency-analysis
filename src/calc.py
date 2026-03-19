@@ -98,8 +98,19 @@ def estimate_peak_qps(
         percentile:      目标分位 p
 
     返回:
-        包含 qps_avg, mu, q_p, qps_peak 的字典。
+        包含 qps_avg、mu、q_p_delta_t、qps_p_delta_t 的字典。
     """
+    if daily_requests <= 0:
+        raise ValueError("模型日请求量 R_d 必须大于 0。")
+    if not 0 < active_ratio <= 1:
+        raise ValueError("活跃时段流量占比 R_act 必须在 (0, 1] 之间。")
+    if active_seconds <= 0:
+        raise ValueError("活跃时段时长 H_act 必须大于 0。")
+    if window_seconds <= 0:
+        raise ValueError("统计窗口 Δt 必须大于 0。")
+    if not 0 < percentile < 1:
+        raise ValueError("目标分位 p 必须在 (0, 1) 之间。")
+
     # 第二步：活跃时段平均到达率
     qps_avg = daily_requests * active_ratio / active_seconds
 
@@ -107,14 +118,14 @@ def estimate_peak_qps(
     mu = qps_avg * window_seconds
 
     # 第五步：高分位请求数
-    q_p = poisson_quantile(mu, percentile)
+    q_p_delta_t = poisson_quantile(mu, percentile)
 
     # 第六步：高分位等效 QPS
-    qps_peak = q_p / window_seconds
+    qps_p_delta_t = q_p_delta_t / window_seconds
 
     return {
         "qps_avg": qps_avg,
         "mu": mu,
-        "q_p": float(q_p),
-        "qps_peak": qps_peak,
+        "q_p_delta_t": q_p_delta_t,
+        "qps_p_delta_t": qps_p_delta_t,
     }

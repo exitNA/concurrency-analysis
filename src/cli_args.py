@@ -93,11 +93,14 @@ def validate_inputs(
         if value is not None:
             values[key] = value
 
-    required_fields = ("active_ratio", "active_seconds")
-    missing_fields = [field for field in required_fields if field not in values]
+    required_fields = (
+        ("active_ratio", "--active-ratio"),
+        ("active_seconds", "--active-duration"),
+    )
+    missing_fields = [label for field, label in required_fields if field not in values]
     if missing_fields:
         joined = ", ".join(missing_fields)
-        raise ValueError(f"缺少必要参数: {joined}。请直接通过 CLI 传入。")
+        raise ValueError(f"缺少必要参数: {joined}。")
 
     if float(values["active_seconds"]) <= 0:
         raise typer.BadParameter("活跃时段时长必须大于 0。")
